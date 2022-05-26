@@ -1,4 +1,5 @@
 import requests
+from bs4 import BeautifulSoup
 import re
 
 
@@ -20,4 +21,27 @@ if match is not None:
 else:
     print('ничего не найдено')
 
-print(reqeust.text.count('Google Tag Manager'))
+# <a class="sdkjfk" href='''...'''>
+
+
+uniq_urls = set()
+soup = BeautifulSoup(request.text, "html.parser")
+for link in soup.findAll('a'):
+    url = link.get('href')
+    if url:
+        url = url.split('#')[0]
+    if url:
+        if main_url in url:
+            url = url.replace(main_url, '')
+        if url.startswith('http://') or url.startswith('https://') or url.startswith('mailto:'):
+            continue
+        uniq_urls.add(url)
+
+print(f'найдено {len(uniq_urls)} уникальных ссылок')
+cnt = 0
+for url in uniq_urls:
+    print(url)
+    cnt += 1
+
+    if cnt > 5:
+        break
