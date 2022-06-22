@@ -1,44 +1,48 @@
-from lib import get_page_content, extract_gtm, get_links
+from os.path import basename
+
+from lib import get_page_content, extract_gtm, get_links, get_scheme_domain_url
 import sys
 
 
 if __name__ == '__main__':
 
-    if len(sys.argv) != 2:
-        print('Передайте первым параметром URL главной страницы')
+    if len(sys.argv) != 3:
+        script_name = basename(sys.argv[0])
+        print(f'Пример использования: {script_name} START_PAGE_URL MAX_LEVEL')
         exit(1)
 
-    main_url = sys.argv[1]
-    page_content = get_page_content(main_url)
-    main_gtm = extract_gtm(page_content)
-    if main_gtm is None:
-        print('GTM не найдена на главной странице')
+    schema, domain, main_url = get_scheme_domain_url(sys.argv[1])
+    if schema not in ['http', 'https'] or not domain:
+        print(f'START_PAGE_URL должен быть вида http(s)://site.ru/')
         exit(1)
 
-    print('На главной странице найдена метка:', main_gtm)
-    downloaded_urls = set()
-    urls_to_download = get_links(page_content, main_url)
+    max_level = int(sys.argv[2])
 
-    gtm_same = []
-    gtm_differ = []
+    main_url = '/'
+    gtms = {}
 
-    cnt = 0
-    while(urls_to_download):
-        url = list(urls_to_download)[0]
-        urls_to_download.remove(url)
-        downloaded_urls.add(url)
+    current_level = 1
+    next_level_urls = {main_url}
+    seen_urls = set()
 
-        page_content = get_page_content(main_url+url)
-        gtm = extract_gtm(page_content)
-        if gtm == main_gtm:
-            gtm_same.append(url)
-        else:
-            gtm_differ.append(url)
-        cnt += 1
-        new_links = get_links(page_content, main_url+url)
+    level = 1
+    while level <= max_level:
+        print(f'--- level: {level}')
+        urls_to_download = next_level_urls - seen_urls
+        next_level_urls = set()
+        for url in urls_to_download:
+            print(f'downloading {url}')
+            seen_urls.add(url)
+            page_content = get_page_content(f'{schema}://{domain}{url}')
+            if not page_content:
+                continue
+            gtms[url] = extract_gtm(page_content)
+            next_level_urls |= get_links(page_content, domain, url)
+        level += 1
 
-        urls_to_download |= new_links - downloaded_urls
+    main_gtm = gtms[main_url]
+    print(f'GTM на главной странице: {main_gtm}')
 
-    print(f'На {len(gtm_differ)} страницах GTM отличается от главной страницы')
-    for url in gtm_differ:
-        print(url)
+    for url, gtm in gtms.items():
+        if gtm != main_gtm:
+            print(f'{gtm} - {url}')
